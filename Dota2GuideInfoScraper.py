@@ -1,93 +1,113 @@
+from operator import itemgetter
 from bs4 import BeautifulSoup
-import urllib2
-import csv
-import datetime
+from random import randint
+from csv import writer
+import requests
+import time
 
 # Scrape guide information
 def guideScrape(guideURL):
 
-    response = urllib2.urlopen(guideURL)
-    soup = BeautifulSoup(response.read(), "html.parser")
-    response.close()
+    # List of user agents
+    agents = ['Mozilla/5.0 (Windows NT 10.0; WOW64; rv:44.0) Gecko/20100101 Firefox/44.0', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Safari/537.36 Edge/13.10586', 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko', 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.116 Safari/537.36', 'Opera/9.80 (X11; Linux i686; Ubuntu/14.10) Presto/2.12.388 Version/12.16', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A']
 
-    title = soup.find(class_="workshopItemTitle").get_text()
-    rating = int(str(soup.find(class_="fileRatingDetails"))[-29])
-    numRatings = soup.find(class_="numRatings").get_text()[:-7].replace(",", "")
-    stats = soup.find(class_="stats_table").findAll('td')
-    visitors = stats[0].get_text().replace(",", "")
-    subscribers = stats[2].get_text().replace(",", "")
-    favorites = stats[4].get_text().replace(",", "")
-    if soup.find(class_="commentthread_count") != None:
-        commentNum = soup.find(class_="commentthread_count").get_text().strip()[:-8].replace(",", "")
+    # Randomize user agent
+    headers = {'User-Agent': agents[randint(0, 5)]}
+
+    # Load information
+    rGuide = requests.get(guideURL, headers=headers)
+    soupGuide = BeautifulSoup(rGuide.content, 'html.parser')
+
+    # Parse and collect information
+    title = soupGuide.find(class_='workshopItemTitle').get_text()
+    rating = int(soupGuide.find(class_='fileRatingDetails').img['src'].split('/')[-1][0])
+    numRatings = int(soupGuide.find(class_='numRatings').get_text().split()[0].replace(',', ''))
+
+    stats = soupGuide.find(class_='stats_table').findAll('td')
+    visitors = int(stats[0].get_text().replace(',', ''))
+    subscribers = int(stats[2].get_text().replace(',', ''))
+    favorites = int(stats[4].get_text().replace(',', ''))
+
+    # Comments may not exist
+    if soupGuide.find(class_='commentthread_count') is not None:
+        commentNum = int(soupGuide.find(class_='commentthread_count').get_text().strip().split()[0].replace(',', ''))
     else:
         commentNum = 0
 
     return [guideURL, title, rating, numRatings, visitors, subscribers, favorites, commentNum]
 
-opener = urllib2.build_opener()
-opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.3; WOW64; Trident/7.0; Touch; rv:11.0) like Gecko')]
-urllib2.install_opener(opener)
 
-# guideScrape("http://steamcommunity.com/sharedfiles/filedetails/?id=286904891")
+# Initialize time tracking
+start_time = time.time()
 
-fileName = "guideData-" + datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S') + ".csv"
+# Instantiate list for data collection
+allGuideData = []
 
-totalGuides = 0
-totalRating = 0
-totalRatings = 0
-totalVisitors = 0
-totalSubscribers = 0
-totalFavorites = 0
-totalComments = 0
-
-# File setup
-with open(fileName, "ab") as fileO:
-    f = csv.writer(fileO)
-    # Write reference row
-    f.writerow(["URL", "Guide Name", "Average Rating", "Number of Ratings", "Unique Visitors", "Current Subscribers", "Current Favorites", "Number of Comments"])
-
-# Build number to iterate search
-for num in range(1,100):
-
-    print num
+# Iterate search through pages
+for num in range(1, 100):
 
     # Build URL
-    searchurl = "http://steamcommunity.com/id/0825771/myworkshopfiles/?section=guides&appid=570&p=" + str(num)
+    searchURL = 'http://steamcommunity.com/id/0825771/myworkshopfiles/?section=guides&appid=570&p=' + str(num)
+
+    # Information on page being scraped
+    print 'Scraping Page %i:' % num
+
+    # List of user agents
+    agents = ['Mozilla/5.0 (Windows NT 10.0; WOW64; rv:44.0) Gecko/20100101 Firefox/44.0', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Safari/537.36 Edge/13.10586', 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko', 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.116 Safari/537.36', 'Opera/9.80 (X11; Linux i686; Ubuntu/14.10) Presto/2.12.388 Version/12.16', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A']
+
+    # Randomize user agent
+    headers = {'User-Agent': agents[randint(0, 5)]}
 
     # Read URL
-    responseMain = urllib2.urlopen(searchurl)
-    soupMain = BeautifulSoup(responseMain.read(), "html.parser")
-    responseMain.close()
+    rSearch = requests.get(searchURL, headers=headers)
+    soupSearch = BeautifulSoup(rSearch.content, 'html.parser')
 
     # If there are no more entries, break out of the loop
-    if soupMain.find(id="no_items") != None:
+    if soupSearch.find(id='no_items') is not None:
         break
 
     # Otherwise get listings
-    listings = soupMain.find_all(class_="workshopItemCollection")
+    listings = soupSearch.find_all(class_='workshopItemCollection')
 
+    # Iterate through guide items
     for listing in listings:
 
-        soupInfo = BeautifulSoup(str(listing), "html.parser")
-        for tag in soupInfo.findAll(True,{"onclick":True}) :
-            guideURL = tag["onclick"][19:-1]
-            print guideURL
+        # Get guide URL and title
+        guideURL = listing['href']
+        guideTitle = listing.find(class_='workshopItemTitle').get_text().strip()
 
-        guideInfo = guideScrape(guideURL)
+        # Scrape guide
+        print('Scraping Guide %s: %s' % (guideURL, guideTitle))
+        allGuideData.append(guideScrape(guideURL))
 
-        with open(fileName, "ab") as fileO:
-            f = csv.writer(fileO)
-            f.writerow(guideInfo)
+# Sort guide data by subscribers (element 5)
+allGuideData = sorted(allGuideData, key=itemgetter(5), reverse=True)
 
-        totalGuides += 1
-        totalRating += guideInfo[2]
-        totalRatings += int(guideInfo[3])
-        totalVisitors += int(guideInfo[4])
-        totalSubscribers += int(guideInfo[5])
-        totalFavorites += int(guideInfo[6])
-        totalComments += int(guideInfo[7])
+# Get totals
+totals = ['Total', len(allGuideData)] + [sum(x) for x in zip(*allGuideData)[2:]]
 
-with open(fileName, "ab") as fileO:
-    f = csv.writer(fileO)
-    f.writerow(["Totals", totalGuides, totalRating, totalRatings, totalVisitors, totalSubscribers, totalFavorites, totalComments])
-    f.writerow(["Averages", totalGuides, totalRating/float(totalGuides), totalRatings/float(totalGuides), totalVisitors/float(totalGuides), totalSubscribers/float(totalGuides), totalFavorites/float(totalGuides), totalComments/float(totalGuides)])
+# Get averages
+averages = ['Average', len(allGuideData)] + [sum(x)/float(len(allGuideData)) for x in zip(*allGuideData)[2:]]
+
+# Add to guide data
+allGuideData.append(totals)
+allGuideData.append(averages)
+
+# Set file name
+fileName = 'guideData-' + time.strftime('%Y-%m-%d_%H-%M-%S') + '.csv'
+
+
+# File setup
+with open(fileName, "wb") as file:
+    f = writer(file)
+
+    # Write reference row
+    f.writerow(["URL", "Guide Name", "Average Rating", "Number of Ratings", "Unique Visitors", "Current Subscribers", "Current Favorites", "Number of Comments"])
+
+    # Add data
+    f.writerows(allGuideData)
+
+
+# Print time to finish and exit
+print '%s seconds to finish' % (time.time() - start_time)
+raw_input('Press Enter to Exit')

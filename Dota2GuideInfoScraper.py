@@ -4,6 +4,17 @@ from random import randint
 from csv import writer
 import requests
 import time
+import sys
+
+
+def show_exception_and_exit(exc_type, exc_value, tb):
+    import traceback
+    traceback.print_exception(exc_type, exc_value, tb)
+    raw_input("Press key to exit.")
+    sys.exit(-1)
+
+sys.excepthook = show_exception_and_exit
+
 
 # Scrape guide information
 def guideScrape(guideURL):
@@ -20,8 +31,14 @@ def guideScrape(guideURL):
 
     # Parse and collect information
     title = soupGuide.find(class_='workshopItemTitle').get_text()
-    rating = int(soupGuide.find(class_='fileRatingDetails').img['src'].split('/')[-1][0])
-    numRatings = int(soupGuide.find(class_='numRatings').get_text().split()[0].replace(',', ''))
+    try: # Exceptions from guides with not enough ratings
+        rating = int(soupGuide.find(class_='fileRatingDetails').img['src'].split('/')[-1][0])
+    except:
+        rating = None
+    try:
+        numRatings = int(soupGuide.find(class_='numRatings').get_text().split()[0].replace(',', ''))
+    except:
+        numRatings = None
 
     stats = soupGuide.find(class_='stats_table').findAll('td')
     visitors = int(stats[0].get_text().replace(',', ''))
@@ -84,10 +101,10 @@ for num in range(1, 100):
 allGuideData = sorted(allGuideData, key=itemgetter(5), reverse=True)
 
 # Get totals
-totals = ['Total', len(allGuideData)] + [sum(x) for x in zip(*allGuideData)[2:]]
+totals = ['Total', len(allGuideData)] + [sum(filter(None, topic)) for topic in zip(*allGuideData)[2:]]
 
 # Get averages
-averages = ['Average', len(allGuideData)] + [sum(x)/float(len(allGuideData)) for x in zip(*allGuideData)[2:]]
+averages = ['Average', len(allGuideData)] + [sum(filter(None, topic))/float(sum(count != None for count in topic)) for topic in zip(*allGuideData)[2:]]
 
 # Add to guide data
 allGuideData.append(totals)
@@ -110,4 +127,4 @@ with open(fileName, "wb") as file:
 
 # Print time to finish and exit
 print '%s seconds to finish' % (time.time() - start_time)
-raw_input('Press Enter to Exit')
+raw_input('Press key to exit.')

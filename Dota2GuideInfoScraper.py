@@ -10,7 +10,7 @@ import sys
 def show_exception_and_exit(exc_type, exc_value, tb):
     import traceback
     traceback.print_exception(exc_type, exc_value, tb)
-    raw_input("Press key to exit.")
+    input("Press key to exit.")
     sys.exit(-1)
 
 sys.excepthook = show_exception_and_exit
@@ -67,7 +67,7 @@ for num in range(1, 100):
     searchURL = 'http://steamcommunity.com/id/0825771/myworkshopfiles/?section=guides&appid=570&p=' + str(num)
 
     # Information on page being scraped
-    print 'Scraping Page %i:' % num
+    print(f'Scraping Page {num}:')
 
     # List of user agents
     agents = ['Mozilla/5.0 (Windows NT 10.0; WOW64; rv:44.0) Gecko/20100101 Firefox/44.0', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Safari/537.36 Edge/13.10586', 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko', 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.116 Safari/537.36', 'Opera/9.80 (X11; Linux i686; Ubuntu/14.10) Presto/2.12.388 Version/12.16', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A']
@@ -95,16 +95,28 @@ for num in range(1, 100):
 
         # Scrape guide
         print('Scraping Guide %s: %s' % (guideURL, guideTitle))
-        allGuideData.append(guideScrape(guideURL))
+
+        # Adding attempt code to hack error problem
+        attempt = 1
+        while attempt <= 5:
+            try:
+                allGuideData.append(guideScrape(guideURL))
+                break
+            except Exception as e:
+                print(f"Attempt {attempt} failed.")
+                print(e)
+                attempt += 1
+        else:
+            raise
 
 # Sort guide data by subscribers (element 5)
 allGuideData = sorted(allGuideData, key=itemgetter(5), reverse=True)
 
 # Get totals
-totals = ['Total', len(allGuideData)] + [sum(filter(None, topic)) for topic in zip(*allGuideData)[2:]]
+totals = ['Total', len(allGuideData)] + [sum(filter(None, topic)) for topic in list(zip(*allGuideData))[2:]]
 
 # Get averages
-averages = ['Average', len(allGuideData)] + [sum(filter(None, topic))/float(sum(count != None for count in topic)) for topic in zip(*allGuideData)[2:]]
+averages = ['Average', len(allGuideData)] + [sum(filter(None, topic))/float(sum(count != None for count in topic)) for topic in list(zip(*allGuideData))[2:]]
 
 # Add to guide data
 allGuideData.append(totals)
@@ -115,7 +127,7 @@ fileName = 'guideData-' + time.strftime('%Y-%m-%d_%H-%M-%S') + '.csv'
 
 
 # File setup
-with open(fileName, "wb") as file:
+with open(fileName, "w") as file:
     f = writer(file)
 
     # Write reference row
@@ -126,5 +138,5 @@ with open(fileName, "wb") as file:
 
 
 # Print time to finish and exit
-print '%s seconds to finish' % (time.time() - start_time)
-raw_input('Press key to exit.')
+print(f'{round((time.time() - start_time), 2)} seconds to finish')
+input('Press key to exit.')

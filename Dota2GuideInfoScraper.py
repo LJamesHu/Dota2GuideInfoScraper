@@ -1,6 +1,6 @@
 from operator import itemgetter
 from bs4 import BeautifulSoup
-from random import randint
+from random import randint, uniform
 from csv import writer
 import requests
 import time
@@ -10,132 +10,189 @@ import sys
 def show_exception_and_exit(exc_type, exc_value, tb):
     import traceback
     traceback.print_exception(exc_type, exc_value, tb)
-    input("Press key to exit.")
+    input('Press key to exit.')
     sys.exit(-1)
 
 sys.excepthook = show_exception_and_exit
 
+# List of user agents last updated 5/12/2024
+agents = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.2478.97',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 OPR/109.0.0.0'
+         ]
 
-# Scrape guide information
-def guideScrape(guideURL):
+# To not have to recalculate user agent randomizer every time I change user agents
+agents_rand = len(agents)-1
 
-    # List of user agents
-    agents = ['Mozilla/5.0 (Windows NT 10.0; WOW64; rv:44.0) Gecko/20100101 Firefox/44.0', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Safari/537.36 Edge/13.10586', 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko', 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.116 Safari/537.36', 'Opera/9.80 (X11; Linux i686; Ubuntu/14.10) Presto/2.12.388 Version/12.16', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A']
+# Scrape individual guide information
+def guide_scrape(guide_url):
 
     # Randomize user agent
-    headers = {'User-Agent': agents[randint(0, 5)]}
+    headers = {'User-Agent': agents[randint(0, agents_rand)]}
 
-    # Load information
-    rGuide = requests.get(guideURL, headers=headers)
-    soupGuide = BeautifulSoup(rGuide.content, 'html.parser')
+    # Load guide's HTML information
+    r_guide = requests.get(guide_url, headers=headers)
+    soup_guide = BeautifulSoup(r_guide.content, 'html.parser')
 
     # Parse and collect information
-    title = soupGuide.find(class_='workshopItemTitle').get_text()
+    title = soup_guide.find(class_='workshopItemTitle').get_text()
+
+    # Parse hero name
+    workshop_tags = soup_guide.find_all(class_='workshopTags')
+    hero_name = [tag.text.strip().split('\xa0')[1] for tag in workshop_tags 
+                           if 'Heroes' in tag.text or 'Tag' in tag.text][0]
+
+    # Get ratings data
     try: # Exceptions from guides with not enough ratings
-        rating = int(soupGuide.find(class_='fileRatingDetails').img['src'].split('/')[-1][0])
+        rating = int(soup_guide.find(class_='fileRatingDetails').img['src'].split('/')[-1][0])
     except:
         rating = None
     try:
-        numRatings = int(soupGuide.find(class_='numRatings').get_text().split()[0].replace(',', ''))
+        num_ratings = int(soup_guide.find(class_='numRatings').get_text().split()[0].replace(',', ''))
     except:
-        numRatings = None
+        num_ratings = None
 
-    stats = soupGuide.find(class_='stats_table').findAll('td')
+    # Get major stats
+    stats = soup_guide.find(class_='stats_table').findAll('td')
     visitors = int(stats[0].get_text().replace(',', ''))
     subscribers = int(stats[2].get_text().replace(',', ''))
     favorites = int(stats[4].get_text().replace(',', ''))
 
     # Comments may not exist
-    if soupGuide.find(class_='commentthread_count') is not None:
-        commentNum = int(soupGuide.find(class_='commentthread_count').get_text().strip().split()[0].replace(',', ''))
+    if soup_guide.find(class_='commentthread_count_label') is not None:
+        commentNum = int(soup_guide.find(class_='commentthread_count_label').get_text().strip().split()[0].replace(',', ''))
     else:
         commentNum = 0
 
-    return [guideURL, title, rating, numRatings, visitors, subscribers, favorites, commentNum]
+    return [guide_url, title, hero_name, rating, num_ratings, visitors, subscribers, favorites, commentNum]
 
+def guide_listing_scrape(id):
+
+    # Setting up scraping target data
+    
+    # 0825771 - Torte de Lini
+    # ImmortalFaith
+    if id == '1':
+        scrape_target = '0825771'
+    elif id == '2':
+        scrape_target = 'ImmortalFaith'
+    else:    
+        scrape_target = str(id)
+    
+    if scrape_target == '0825771':
+        scrape_name = 'TorteDeLini'
+    else:    
+        scrape_name = scrape_target
+
+    print(f'Scraping guides for {scrape_name}')
+
+    # Instantiate list for data collection
+    all_guide_data = []
+    
+    # Iterate search through pages
+    for num in range(1, 200):
+        # Pagination URL
+        search_url = f'http://steamcommunity.com/id/{scrape_target}/myworkshopfiles/?section=guides&appid=570&p={str(num)}'
+    
+        # Information on page number being scraped
+        print('* * * *')
+        print(f'Scraping Page {num}: {search_url}')
+        print('* * * *')
+    
+        # Randomize user agent
+        headers = {'User-Agent': agents[randint(0, agents_rand)]}
+    
+        # Read pagination page's HTML data
+        r_search = requests.get(search_url, headers=headers)
+        soup_search = BeautifulSoup(r_search.content, 'html.parser')
+    
+        # If there are no more entries, break out of the loop
+        if soup_search.find(id='no_items') is not None:
+            break
+    
+        # Otherwise get listings
+        listings = soup_search.find_all(class_='workshopItemCollection')
+        
+        time.sleep(uniform(1, 2))
+        
+        # Iterate through guide items
+        for listing in listings:
+            
+            # Get guide URLs and title
+            guide_url = listing['href']
+            guide_title = listing.find(class_='workshopItemTitle').get_text().strip()
+
+            # Specific exceptions
+            if guide_url in ['https://steamcommunity.com/sharedfiles/filedetails/?id=2958853356']:
+                print(f"Skipping {guide_url}")
+                continue
+    
+            # Scrape guide
+            print(f'Scraping Guide {guide_url}: {guide_title}')
+        
+            time.sleep(uniform(1, 2))
+    
+            # Adding attempt code to hack error problem
+            # Sometimes guide scrape would fail randomly so rerun attempts help solve this
+            attempt = 1
+            while attempt <= 5:
+                try:
+                    all_guide_data.append(guide_scrape(guide_url))
+                    break
+                except Exception as e:
+                    print(f'Attempt {attempt} failed.')
+                    print(e)
+                    attempt += 1
+            else:
+                raise
+    
+    # Sort guide data by subscribers (element 5)
+    all_guide_data = sorted(all_guide_data, key=itemgetter(5), reverse=True)
+    
+    # Get totals
+    totals = ['Total', len(all_guide_data), ''] + [sum(filter(None, metric)) for metric in list(zip(*all_guide_data))[3:]]
+    
+    # Get averages
+    averages = ['Average', len(all_guide_data), ''] + [sum(filter(None, metric))/\
+                                                   float(sum(count != None for count in metric)) for metric in list(zip(*all_guide_data))[3:]]
+    
+    # Add to guide data
+    all_guide_data.append(totals)
+    all_guide_data.append(averages)
+    
+    # Set file name
+    file_name = 'guideData-' + scrape_name + '-' + time.strftime('%Y-%m-%d_%H-%M-%S') + '.csv'
+    print(f'Output to {file_name}')    
+    
+    # File setup
+    with open(file_name, 'w', newline='') as file:
+        f = writer(file)
+    
+        # Write reference row
+        f.writerow(['URL', 'Guide Name', 'Hero Name', 'Average Rating', 'Number of Ratings', 'Unique Visitors',
+                    'Current Subscribers', 'Current Favorites', 'Number of Comments'])
+    
+        # Add data
+        f.writerows(all_guide_data)
+
+def get_number_input():
+    
+    print('Enter 1 for Torte de Lini.')
+    print('Enter 2 for ImmortalFaith.')
+    print('Otherwise enter target user.')
+    user_input = input('Please enter a value: ')
+
+    return str(user_input)
+
+# Call the function and store the result
+target_id = get_number_input()
 
 # Initialize time tracking
 start_time = time.time()
 
-# Instantiate list for data collection
-allGuideData = []
-
-# Iterate search through pages
-for num in range(1, 100):
-
-    # Build URL
-    searchURL = 'http://steamcommunity.com/id/0825771/myworkshopfiles/?section=guides&appid=570&p=' + str(num)
-
-    # Information on page being scraped
-    print(f'Scraping Page {num}:')
-
-    # List of user agents
-    agents = ['Mozilla/5.0 (Windows NT 10.0; WOW64; rv:44.0) Gecko/20100101 Firefox/44.0', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Safari/537.36 Edge/13.10586', 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko', 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.116 Safari/537.36', 'Opera/9.80 (X11; Linux i686; Ubuntu/14.10) Presto/2.12.388 Version/12.16', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A']
-
-    # Randomize user agent
-    headers = {'User-Agent': agents[randint(0, 5)]}
-
-    # Read URL
-    rSearch = requests.get(searchURL, headers=headers)
-    soupSearch = BeautifulSoup(rSearch.content, 'html.parser')
-
-    # If there are no more entries, break out of the loop
-    if soupSearch.find(id='no_items') is not None:
-        break
-
-    # Otherwise get listings
-    listings = soupSearch.find_all(class_='workshopItemCollection')
-
-    # Iterate through guide items
-    for listing in listings:
-
-        # Get guide URL and title
-        guideURL = listing['href']
-        guideTitle = listing.find(class_='workshopItemTitle').get_text().strip()
-
-        # Scrape guide
-        print('Scraping Guide %s: %s' % (guideURL, guideTitle))
-
-        # Adding attempt code to hack error problem
-        attempt = 1
-        while attempt <= 5:
-            try:
-                allGuideData.append(guideScrape(guideURL))
-                break
-            except Exception as e:
-                print(f"Attempt {attempt} failed.")
-                print(e)
-                attempt += 1
-        else:
-            raise
-
-# Sort guide data by subscribers (element 5)
-allGuideData = sorted(allGuideData, key=itemgetter(5), reverse=True)
-
-# Get totals
-totals = ['Total', len(allGuideData)] + [sum(filter(None, topic)) for topic in list(zip(*allGuideData))[2:]]
-
-# Get averages
-averages = ['Average', len(allGuideData)] + [sum(filter(None, topic))/float(sum(count != None for count in topic)) for topic in list(zip(*allGuideData))[2:]]
-
-# Add to guide data
-allGuideData.append(totals)
-allGuideData.append(averages)
-
-# Set file name
-fileName = 'guideData-' + time.strftime('%Y-%m-%d_%H-%M-%S') + '.csv'
-
-
-# File setup
-with open(fileName, "w") as file:
-    f = writer(file)
-
-    # Write reference row
-    f.writerow(["URL", "Guide Name", "Average Rating", "Number of Ratings", "Unique Visitors", "Current Subscribers", "Current Favorites", "Number of Comments"])
-
-    # Add data
-    f.writerows(allGuideData)
-
+guide_listing_scrape(target_id)
 
 # Print time to finish and exit
 print(f'{round((time.time() - start_time), 2)} seconds to finish')

@@ -43,3 +43,9 @@ Temporary Items
 .apdisk
 
 *.csv
+*.ipynb
+*.spec
+.git
+.ipynb_checkpoints
+dist
+build

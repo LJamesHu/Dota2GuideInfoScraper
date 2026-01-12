@@ -15,12 +15,12 @@ def show_exception_and_exit(exc_type, exc_value, tb):
 
 sys.excepthook = show_exception_and_exit
 
-# List of user agents last updated 5/12/2024
-agents = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15',
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.2478.97',
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 OPR/109.0.0.0'
+# List of user agents last updated 
+agents = ['Mozilla/5.0 (Windows NT 11.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.6073.156 Safari/537.36'
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/616.9 (KHTML, like Gecko) Version/17.1 Safari/616.9'
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6043.119 Safari/537.36 Edg/120.0.2673.144'
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0_9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6110.175 Safari/537.36'
+          'Mozilla/5.0 (Windows NT 11.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.6471.173 Safari/537.36'
          ]
 
 # To not have to recalculate user agent randomizer every time I change user agents
@@ -56,6 +56,7 @@ def guide_scrape(guide_url):
 
     # Get major stats
     stats = soup_guide.find(class_='stats_table').findAll('td')
+    
     visitors = int(stats[0].get_text().replace(',', ''))
     subscribers = int(stats[2].get_text().replace(',', ''))
     favorites = int(stats[4].get_text().replace(',', ''))
@@ -115,7 +116,7 @@ def guide_listing_scrape(id):
         # Otherwise get listings
         listings = soup_search.find_all(class_='workshopItemCollection')
         
-        time.sleep(uniform(1, 2))
+        time.sleep(uniform(1, 3))
         
         # Iterate through guide items
         for listing in listings:
@@ -132,18 +133,19 @@ def guide_listing_scrape(id):
             # Scrape guide
             print(f'Scraping Guide {guide_url}: {guide_title}')
         
-            time.sleep(uniform(1, 2))
+            time.sleep(uniform(1, 10))
     
             # Adding attempt code to hack error problem
             # Sometimes guide scrape would fail randomly so rerun attempts help solve this
             attempt = 1
-            while attempt <= 5:
+            while attempt <= 20:
                 try:
                     all_guide_data.append(guide_scrape(guide_url))
                     break
                 except Exception as e:
                     print(f'Attempt {attempt} failed.')
                     print(e)
+                    time.sleep(uniform(30, 150))
                     attempt += 1
             else:
                 raise
@@ -167,7 +169,7 @@ def guide_listing_scrape(id):
     print(f'Output to {file_name}')    
     
     # File setup
-    with open(file_name, 'w', newline='') as file:
+    with open(file_name, 'w', encoding='utf-8', newline='') as file:
         f = writer(file)
     
         # Write reference row

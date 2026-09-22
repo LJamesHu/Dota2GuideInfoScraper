@@ -49,3 +49,6 @@ Temporary Items
 .ipynb_checkpoints
 dist
 build
+
+# Steam Web API key, keep private
+steam_api_key.txt
